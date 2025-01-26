@@ -371,7 +371,7 @@ variable "cidr-d" {
 
 Манифесты готовы, теперь делаем Terraform apply и создаем наши ресурсы
 
-![Image alt](скрин1)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/05be97e401813ad0691112d03cd86de22efc6e97/IMG/1.jpg)
 
 
 Видим что наша сеть и подсети создались (дефолтные создает сам яндекс в клауде, удалять не стал так все пересоздадутся, и работе не мешают)
@@ -380,24 +380,24 @@ variable "cidr-d" {
 Создался бакет для хранения
 
 
-![Image alt](скрин2)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/05be97e401813ad0691112d03cd86de22efc6e97/IMG/2.jpg)
 
 
 Теперь через веб-интерфейс сходим в бакет, и увидим там файлы стейтов (состояний) Terraform
 
 
-![Image alt](скрин3)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/05be97e401813ad0691112d03cd86de22efc6e97/IMG/3.jpg)
 
 
 Скачиваем его к себе и видим описание всех созданных нами ресурсов через Terraform
 
 
-![Image alt](скрин4)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/05be97e401813ad0691112d03cd86de22efc6e97/IMG/4.jpg)
 
 Теперь также одной командой грохнем всю инфраструктуру и пойдем писать далее Terraform манифесты для виртуальных машин под наш k8s кластер.
 
 
-![Image alt](скрин5)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/05be97e401813ad0691112d03cd86de22efc6e97/IMG/5.jpg)
 
 
 Первая часть диплома по подготовке инфраструктуры готова. Теперь можно приступать к созданию окружения на ВМ для развертывания на них k8s кластера.
@@ -613,7 +613,7 @@ terraform apply
 
 Смотрим ноды
 
-![Image alt](скрин6)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/05be97e401813ad0691112d03cd86de22efc6e97/IMG/6.jpg)
 
 Все супер, все в разных зонах.
 
@@ -622,7 +622,7 @@ terraform apply
 Подключимся Линзой и глянем ест ли наши поды во всех неймспейсах
 
 
-![Image alt](скрин7)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/05be97e401813ad0691112d03cd86de22efc6e97/IMG/7.jpg)
 
 Теперь пойдем дальше, запилим наше приложение)))
 
@@ -671,7 +671,7 @@ COPY index.html /usr/share/nginx/html
 ```
 Теперь запушим эти изменения в наш гитхаб репозиторий
 
-![Image alt](скрин8)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/05be97e401813ad0691112d03cd86de22efc6e97/IMG/8.jpg)
 
 
 Создадим папку для приложения mkdir mynginx и скопируем в нее ранее созданые файлы.
@@ -681,12 +681,12 @@ COPY index.html /usr/share/nginx/html
 sudo docker build -t mezhibo/nginx:v1 .
 ```
 
-![Image alt](скрин9)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/05be97e401813ad0691112d03cd86de22efc6e97/IMG/9.jpg)
 
 
 Проверим что образ сбилдился
 
-![Image alt](скрин10)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/05be97e401813ad0691112d03cd86de22efc6e97/IMG/10.jpg)
 
 
 
@@ -694,13 +694,13 @@ sudo docker build -t mezhibo/nginx:v1 .
 
 
 
-![Image alt](скрин11)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/05be97e401813ad0691112d03cd86de22efc6e97/IMG/11.jpg)
 
 
 
 Зайдем в Docker Hub и проверим что наш контейнер доехал
 
-![Image alt](скрин12)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/05be97e401813ad0691112d03cd86de22efc6e97/IMG/12.jpg)
 
 
 Так, приложение в контейнер сбилдили, в Доке хаб закинули, теперь его будем оттуда забирать и деплоить в наш кубер - кластер.
