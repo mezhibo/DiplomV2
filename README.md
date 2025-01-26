@@ -154,9 +154,110 @@ locals {
 
 ```
 
+6) Так как безопасность-наше все, создадим security groups для контроля траффика
+
+[sg.tf](https://github.com/mezhibo/DiplomV2/blob/f9e9b285b4695c689aea3eb9abfcb8d709620d41/Chapter1/sg.tf)
 
 
-6) Заполним файл с перменными для получения всех значений в наших манифестах
+```
+resource "yandex_vpc_security_group" "k8s-main-sg" {
+  name        = "k8s-main-sg"
+  description = "Правила группы обеспечивают базовую работоспособность кластера"
+  network_id  = "${yandex_vpc_network.default.id}"
+  ingress {
+    protocol          = "TCP"
+    description       = "Правило разрешает проверки доступности с диапазона адресов балансировщика нагрузки. Нужно для работы отказоустойчивого кластера и сервисов балансировщика."
+    predefined_target = "loadbalancer_healthchecks"
+    from_port         = 0
+    to_port           = 65535
+  }
+  ingress {
+    protocol          = "ANY"
+    description       = "Правило разрешает взаимодействие мастер-узел и узел-узел внутри группы безопасности."
+    predefined_target = "self_security_group"
+    from_port         = 0
+    to_port           = 65535
+  }
+  ingress {
+    protocol       = "ANY"
+    description    = "Правило разрешает взаимодействие под-под и сервис-сервис. Указываем подсети нашего кластера и сервисов."
+    v4_cidr_blocks = concat("${yandex_vpc_subnet.public-a.v4_cidr_blocks}", "${yandex_vpc_subnet.public-b.v4_cidr_blocks}", "${yandex_vpc_subnet.public-d.v4_cidr_blocks}", )
+    from_port      = 0
+    to_port        = 65535
+  }
+  ingress {
+    protocol       = "ICMP"
+    description    = "Правило разрешает отладочные ICMP-пакеты из внутренних подсетей."
+    v4_cidr_blocks = ["172.16.0.0/12", "10.0.0.0/8", "192.168.0.0/16"]
+  }
+  ingress {
+    protocol          = "TCP"
+    description       = "Правило разрешает входящий трафик из интернета на диапазон портов NodePort. Добавляем или изменяем порты на нужные нам."
+    v4_cidr_blocks    = ["0.0.0.0/0"]
+    from_port         = 30000
+    to_port           = 32767
+  }
+
+  egress {
+    protocol       = "ANY"
+    description    = "Правило разрешает весь исходящий трафик. Узлы могут связаться с Yandex Container Registry, Object Storage, Docker Hub и т.д."
+    v4_cidr_blocks = ["0.0.0.0/0"]
+    from_port      = 0
+    to_port        = 65535
+  }
+}
+
+resource "yandex_vpc_security_group" "k8s-public-services" {
+  name        = "k8s-public-services"
+  description = "Правила группы разрешают подключение к сервисам из интернета. Применяем правила только для групп узлов."
+  network_id  = "${yandex_vpc_network.default.id}"
+
+  ingress {
+    protocol       = "TCP"
+    description    = "Правило разрешает входящий трафик из интернета на диапазон портов NodePort. Добавляем или изменяем порты на нужные нам."
+    v4_cidr_blocks = ["0.0.0.0/0"]
+    from_port      = 30000
+    to_port        = 32767
+  }
+}
+
+resource "yandex_vpc_security_group" "k8s-nodes-ssh-access" {
+  name        = "k8s-nodes-ssh-access"
+  description = "Правила группы разрешают подключение к узлам кластера по SSH. Применяем правила только для групп узлов."
+  network_id  = "${yandex_vpc_network.default.id}"
+
+  ingress {
+    protocol       = "TCP"
+    description    = "Правило разрешает подключение к узлам по SSH с указанных IP-адресов."
+    v4_cidr_blocks = ["${var.host_ip}"]
+    port           = 22
+  }
+}
+
+resource "yandex_vpc_security_group" "k8s-master-whitelist" {
+  name        = "k8s-master-whitelist"
+  description = "Правила группы разрешают доступ к API Kubernetes из интернета. Применяем правила только к кластеру."
+  network_id  = "${yandex_vpc_network.default.id}"
+
+  ingress {
+    protocol       = "TCP"
+    description    = "Правило разрешает подключение к API Kubernetes через порт 6443 из указанной сети."
+    v4_cidr_blocks = ["${var.host_ip}"]
+    port           = 6443
+  }
+
+  ingress {
+    protocol       = "TCP"
+    description    = "Правило разрешает подключение к API Kubernetes через порт 443 из указанной сети."
+    v4_cidr_blocks = ["${var.host_ip}"]
+    port           = 443
+  }
+}
+```
+
+
+
+7) Заполним файл с перменными для получения всех значений в наших манифестах
 
 
 [variables.tf](https://github.com/mezhibo/DiplomV2/blob/146ec02c5984250481177e27158cda96986b2ab1/Chapter1/variables.tf)
@@ -270,7 +371,7 @@ variable "cidr-d" {
 
 Манифесты готовы, теперь делаем Terraform apply и создаем наши ресурсы
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/1e248f8ced6090ba91fd1e59c430e38e2ca06422/IMG/1.jpg)
+![Image alt](скрин1)
 
 
 Видим что наша сеть и подсети создались (дефолтные создает сам яндекс в клауде, удалять не стал так все пересоздадутся, и работе не мешают)
@@ -279,24 +380,24 @@ variable "cidr-d" {
 Создался бакет для хранения
 
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/1e248f8ced6090ba91fd1e59c430e38e2ca06422/IMG/2.jpg)
+![Image alt](скрин2)
 
 
 Теперь через веб-интерфейс сходим в бакет, и увидим там файлы стейтов (состояний) Terraform
 
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/1e248f8ced6090ba91fd1e59c430e38e2ca06422/IMG/3.jpg)
+![Image alt](скрин3)
 
 
 Скачиваем его к себе и видим описание всех созданных нами ресурсов через Terraform
 
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/1e248f8ced6090ba91fd1e59c430e38e2ca06422/IMG/4.jpg)
+![Image alt](скрин4)
 
 Теперь также одной командой грохнем всю инфраструктуру и пойдем писать далее Terraform манифесты для виртуальных машин под наш k8s кластер.
 
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/1e248f8ced6090ba91fd1e59c430e38e2ca06422/IMG/5.jpg)
+![Image alt](скрин5)
 
 
 Первая часть диплома по подготовке инфраструктуры готова. Теперь можно приступать к созданию окружения на ВМ для развертывания на них k8s кластера.
@@ -305,442 +406,225 @@ variable "cidr-d" {
 
 **Создание Kubernetes кластера**
 
-Выбрал создание k8s кластера через создание виртальных машин и Ansible с Kubespray, так как этот вариант максимально универсален и применим и для 
+Создавать кластер буду через наиболее рациональное решение, и более выгодное, т.к оно умеет удалять ноды по мере надобности и их создавать, а именно
+подниму отказоустойчивый k8s кластер через Yandex Managed Service for Kubernetes, очень удобное и выгодное решение с огромным множеством плюсов (более подробно расскажут менеджеры Яндекс, я здесь не за этим))))
 
-On-premise решения, которому компании доверяют больше и также можно развернуть on-cloud, что я собсвенно буду делать
+Создам манифест для развертывания кластера из 3 нод
 
-Yandex Managed Service for Kubernetes от Yandex Cloud более узкнонаправленое и неуниверсальное средство развертывания, но у него ест и свои плюсы, в виде динамического создания и удаления нод в зависимости от нагрузки, чего нет в On-premise решениях и при работе с Yndex cloud это будет более дешевле содержать кластер из 1-3 нод которые то есть то нет от нагрузки, нежели платить сразу за 3 вм.
-
-Я решил пойти по более универсальному пути, который плотно используется в работе на On-premise  и On-cloud
-
-
-Создади 3 вм под наш кубер, 1 ноду мастера и 2 воркер ноды
-
-
-Описываем tf мастер-ноду
-
-[master-node.tf](https://github.com/mezhibo/Diplom/blob/913447f3ac52f0f7b08df2fc04159d425582a850/Chapter2/master-node.tf)
-
+[k8s.tf](https://github.com/mezhibo/DiplomV2/blob/b01b468fef44ccc52baa365dbea5200c5014b876/Chapter2/k8s.tf)
 
 ```
-# Ресурсы для создания master-node
 
-# Создадим ресурс образа виртуальной машины для облачного сервиса Yandex Compute Cloud из существующего архива.
-data "yandex_compute_image" "debian" {
-  family = var.os_image_node
+resource "yandex_kubernetes_cluster" "k8s-cluster" {
+  name = "k8s-cluster"
+  network_id = "${yandex_vpc_network.default.id}"
+
+  master {
+    regional {
+      region = "ru-central1"
+
+      location {
+        zone      = "${yandex_vpc_subnet.public-a.zone}"
+        subnet_id = "${yandex_vpc_subnet.public-a.id}"
+      }
+
+      location {
+        zone      = "${yandex_vpc_subnet.public-b.zone}"
+        subnet_id = "${yandex_vpc_subnet.public-b.id}"
+      }
+
+      location {
+        zone      = "${yandex_vpc_subnet.public-d.zone}"
+        subnet_id = "${yandex_vpc_subnet.public-d.id}"
+      }
+    }
+
+    security_group_ids = ["${yandex_vpc_security_group.k8s-main-sg.id}",
+                          "${yandex_vpc_security_group.k8s-master-whitelist.id}"
+    ]
+
+    version   = "1.28"
+    public_ip = true
+
+    master_logging {
+      enabled = true
+      folder_id = "${var.folder_id}"
+      kube_apiserver_enabled = true
+      cluster_autoscaler_enabled = true
+      events_enabled = true
+      audit_enabled = true
+    }    
+  }
+  service_account_id      = yandex_iam_service_account.kuber.id
+  node_service_account_id = yandex_iam_service_account.kuber.id
 }
 
+# Create worker-nodes-a
+resource "yandex_kubernetes_node_group" "worker-nodes-a" {
+  cluster_id = "${yandex_kubernetes_cluster.k8s-cluster.id}"
+  name       = "worker-nodes-a"
+  version    = "1.28"
+  instance_template {
+    platform_id = "standard-v2"
 
-resource "yandex_compute_instance" "master-node" {
-  name        = "${var.yandex_compute_instance_web[0].vm_name}-${count.index+1}"
-  platform_id = var.yandex_compute_instance_web[0].platform_id
+    network_interface {
+      nat                = true
+      subnet_ids         = ["${yandex_vpc_subnet.public-a.id}"]
+      security_group_ids = [
+        "${yandex_vpc_security_group.k8s-main-sg.id}",
+        "${yandex_vpc_security_group.k8s-nodes-ssh-access.id}",
+        "${yandex_vpc_security_group.k8s-public-services.id}"
+      ]
+    }
 
-  count = var.yandex_compute_instance_web[0].count_vms
+    resources {
+      memory = 4
+      cores  = 2
+    }
 
-  resources {
-    cores         = var.yandex_compute_instance_web[0].cores
-    memory        = var.yandex_compute_instance_web[0].memory
-    core_fraction = var.yandex_compute_instance_web[0].core_fraction
-  }
+    boot_disk {
+      type = "network-hdd"
+      size = 64
+    }
 
-  boot_disk {
-    initialize_params {
-      image_id = data.yandex_compute_image.debian.image_id
-      type     = var.boot_disk_web[0].type
-      size     = var.boot_disk_web[0].size
+    container_runtime {
+      type = "containerd"
     }
   }
 
-  metadata = {  
-    serial-port-enable = 1
-    ssh-keys = "debian:${file("~/.ssh/id_rsa.pub")}"
- }
-
-  network_interface {
-    subnet_id = yandex_vpc_subnet.subnet-a.id
-    nat       = true
+  scale_policy {
+    fixed_scale {
+      size = 1
   }
-  scheduling_policy {
-    preemptible = true
+  }
+
+  allocation_policy {
+    location {
+      zone = "${yandex_vpc_subnet.public-a.zone}"
+    }
   }
 }
-```
-
-Теперь опишем воркер ноды
-
-Так как воркер-нод у меня 2, самым правильным вариантом считаю создать ее через счетчик (count)
 
 
-[worker-node.tf](https://github.com/mezhibo/Diplom/blob/00017d031f7693595c69a1d257f6506271e8c95e/Chapter2/worker-node.tf)
+# Create worker-nodes-b
+resource "yandex_kubernetes_node_group" "worker-nodes-b" {
+  cluster_id = "${yandex_kubernetes_cluster.k8s-cluster.id}"
+  name       = "worker-nodes-b"
+  version    = "1.28"
+  instance_template {
+    platform_id = "standard-v2"
 
+    network_interface {
+      nat                = true
+      subnet_ids         = ["${yandex_vpc_subnet.public-b.id}"]
+      security_group_ids = [
+        "${yandex_vpc_security_group.k8s-main-sg.id}",
+        "${yandex_vpc_security_group.k8s-nodes-ssh-access.id}",
+        "${yandex_vpc_security_group.k8s-public-services.id}"
+      ]
+    }
 
-```
-# Ресурсы для создания worker-node
+    resources {
+      memory = 4
+      cores  = 2
+    }
 
-resource "yandex_compute_instance" "worker-node" {
-  name        = "${var.yandex_compute_instance_worker[0].vm_name}-${count.index+1}"
-  platform_id = var.yandex_compute_instance_worker[0].platform_id
+    boot_disk {
+      type = "network-hdd"
+      size = 64
+    }
 
-  count = var.yandex_compute_instance_worker[0].count_vms
-
-  resources {
-    cores         = var.yandex_compute_instance_worker[0].cores
-    memory        = var.yandex_compute_instance_worker[0].memory
-    core_fraction = var.yandex_compute_instance_worker[0].core_fraction
-  }
-
-  boot_disk {
-    initialize_params {
-      image_id = data.yandex_compute_image.debian.image_id
-      type     = var.boot_disk_worker[0].type
-      size     = var.boot_disk_worker[0].size
+    container_runtime {
+      type = "containerd"
     }
   }
 
-  metadata = {  
-    serial-port-enable = 1
-    ssh-keys = "debian:${file("~/.ssh/id_rsa.pub")}"
- }
-
-  network_interface {
-    subnet_id = yandex_vpc_subnet.subnet-a.id
-    nat       = true
+  scale_policy {
+    fixed_scale {
+      size = 1
   }
-  scheduling_policy {
-    preemptible = true
+  }
+
+  allocation_policy {
+    location {
+      zone = "${yandex_vpc_subnet.public-b.zone}"
+    }
+  }
+}
+
+# Create worker-nodes-d
+resource "yandex_kubernetes_node_group" "worker-nodes-d" {
+  cluster_id = "${yandex_kubernetes_cluster.k8s-cluster.id}"
+  name       = "worker-nodes-d"
+  version    = "1.28"
+  instance_template {
+    platform_id = "standard-v2"
+
+    network_interface {
+      nat                = true
+      subnet_ids         = ["${yandex_vpc_subnet.public-d.id}"]
+      security_group_ids = [
+        "${yandex_vpc_security_group.k8s-main-sg.id}",
+        "${yandex_vpc_security_group.k8s-nodes-ssh-access.id}",
+        "${yandex_vpc_security_group.k8s-public-services.id}"
+      ]
+    }
+
+    resources {
+      memory = 4
+      cores  = 2
+    }
+
+    boot_disk {
+      type = "network-hdd"
+      size = 64
+    }
+
+    container_runtime {
+      type = "containerd"
+    }
+  }
+
+  scale_policy {
+    fixed_scale {
+      size = 1
+  }
+  }
+
+  allocation_policy {
+    location {
+      zone = "${yandex_vpc_subnet.public-d.zone}"
+    }
   }
 }
 ```
 
+Рабочие ноды были созданы в разных node-group для максимальной отказоустойчивости кластера, а именно, каждая node-группа
+располагается в разной зоне доступности, и в случае падения зоны А (да-да, привет Яндекс и 3 падения зоны А за Декабрь 2024 года)
 
-Теперь дополним наш файл с переменнынми нашими map-переменными для описания ресурсов наших виртуальных машин.
+К сожалению Яндекс не дает возможности создать 3 разных ноды в разных зонах доступности в рамках однйо нод-группы, но нод группы будет 3.
+И учитывая что архитектуру свой инфарструктуры клауда я продумывал долго и с умом, сети у меня тоже в 3 разных зонах, так что если у Яндекса опять
+будут "Частичная недоступность сети ru-central1-a", то мое приложение от этого никак не пострадает.
 
-[variables.tf](https://github.com/mezhibo/Diplom/blob/7b54d9d0afbbedbb6a81ee44b8d4bd75a94f45f9/Chapter2/variables.tf)
-  
-Добавим код ниже
-
-
-
+Опять делаем
 ```
-# Переменные для master-node
-
-variable "yandex_compute_instance_web" {
-  type        = list(object({
-    vm_name = string
-    cores = number
-    memory = number
-    core_fraction = number
-    count_vms = number
-    platform_id = string
-  }))
-
-  default = [{
-      vm_name = "master"
-      cores         = 2
-      memory        = 4
-      core_fraction = 20
-      count_vms = 1
-      platform_id = "standard-v1"
-    }]
-}
-
-variable "boot_disk_web" {
-  type        = list(object({
-    size = number
-    type = string
-    }))
-    default = [ {
-    size = 30
-    type = "network-hdd"
-  }]
-}
-
-
-# Переменные для worker-node
-
-variable "yandex_compute_instance_worker" {
-  type        = list(object({
-    vm_name = string
-    cores = number
-    memory = number
-    core_fraction = number
-    count_vms = number
-    platform_id = string
-  }))
-
-  default = [{
-      vm_name = "worker"
-      cores         = 4
-      memory        = 6
-      core_fraction = 20
-      count_vms = 2
-      platform_id = "standard-v1"
-    }]
-}
-
-variable "boot_disk_worker" {
-  type        = list(object({
-    size = number
-    type = string
-    }))
-    default = [ {
-    size = 30
-    type = "network-hdd"
-  }]
-}
+terraform apply
 ```
 
+Смотрим ноды
 
-Теперь будем подготавливать наш файл авто-инвентаризации хостов
+![Image alt](скрин6)
 
+Все супер, все в разных зонах.
 
-Первым этапом подготовим terrafrom-output созданных нами ВМ
+Теперь чтобы удобнее было работать с кластером, я подключу Lens через YC и Power Shell, и через yc и kubectl внутри WSL (инструкция есть в интернете, расписывать не буду)
 
-[outputs.tf](https://github.com/mezhibo/Diplom/blob/b12f989871514b64e5fc07cd9649a2b0fff9bde4/Chapter2/outputs.tf)
+Подключимся Линзой и глянем ест ли наши поды во всех неймспейсах
 
 
-```
-output "master-node" {
-  value = flatten([
-    [for i in yandex_compute_instance.master-node : {
-      name = i.name
-      ip_external   = i.network_interface[0].nat_ip_address
-      ip_internal = i.network_interface[0].ip_address
-    }],
-  ])
-}
+![Image alt](скрин7)
 
-output "worker-node" {
-  value = flatten([
-    [for i in yandex_compute_instance.worker-node : {
-      name = i.name
-      ip_external   = i.network_interface[0].nat_ip_address
-      ip_internal = i.network_interface[0].ip_address
-    }],
-  ])
-}
-```
-
-Далее опишем манифест создания нашего инвентори-файла на основе шаблона
-
-[create-hosts.tf](https://github.com/mezhibo/Diplom/blob/e779e4f9ac0b9167ae6a0062ed2e851d62398d7f/Chapter2/create-hosts.tf)
-
-```
-resource "local_file" "hosts_yml_kubespray" {
-
-  content  = templatefile("${path.module}/hosts.tftpl", {
-    workers = yandex_compute_instance.worker-node
-    masters = yandex_compute_instance.master-node
-  })
-  filename = "../ansible/inventory/hosts.yml"
-}
-```
-
-Теперь подготовим сам шаблон в формате tftpl в который и будут приниматься значения terraform-output
-
-[hosts.tftpl](https://github.com/mezhibo/Diplom/blob/c8c971b721876d518faea080d7dac2357a6654fd/Chapter2/hosts.tftpl)
-
-
-```
-all:
-  hosts:%{ for idx, master-node in masters }
-    master-${idx + 1}:
-      ansible_host: ${master-node.network_interface[0].nat_ip_address}
-      ip: ${master-node.network_interface[0].ip_address}
-      access_ip: ${master-node.network_interface[0].ip_address}%{ endfor }%{ for idx, worker-node in workers }
-      ansible_user: debian
-    worker-${idx + 1}:
-      ansible_host: ${worker-node.network_interface[0].nat_ip_address}
-      ip: ${worker-node.network_interface[0].ip_address}
-      access_ip: ${worker-node.network_interface[0].ip_address}%{ endfor }
-      ansible_user: debian
-  children:
-    kube_control_plane:
-      hosts:%{ for idx, master-node in masters }
-        ${master-node.name}:%{ endfor }
-    kube_node:
-      hosts:%{ for idx, worker-node in workers }
-        ${worker-node.name}:%{ endfor }
-    etcd:
-      hosts:%{ for idx, master-node in masters }
-        ${master-node.name}:%{ endfor }
-    k8s_cluster:
-      children:
-        kube_control_plane:
-        kube_node:
-    calico_rr:
-      hosts: {}
-```
-
-Все, на этом этапе работа с созданием облычных ресурсов в Yandex-cloud через terraform окончена
-
-Далее начнем работать со средсвом управления конфигурацией Ansible
-
-Выполянем terraform apply и создаем теперь полностью готовое окружение где будем разворчивать k8s и в него наше приложение и приложения мониторинга
-
-![Image alt](https://github.com/mezhibo/Diplom/blob/1e248f8ced6090ba91fd1e59c430e38e2ca06422/IMG/6.jpg)
-
-
-Все, видим что ресурсы созданы, оутпуты показаны, идем проверим наш файл авто-инвентори, как он заполнился
-
-![Image alt](https://github.com/mezhibo/Diplom/blob/1e248f8ced6090ba91fd1e59c430e38e2ca06422/IMG/7.jpg)
-
-Все, видим что все отлично, теперь подготовим Ansible - плейбук, который подготовит наш мастер-хост к настройке воркер-нод через kubespray
-
-
-[site.yml](https://github.com/mezhibo/Diplom/blob/18ff462c131613ce306e9d4787c41837dd1faa45/Chapter2/site.yml)
-
-```
-- name: Установка pip
-  hosts: master-1
-  become: true
-
-  tasks:
-
-    - name: Скачиваем файл get-pip.py
-      ansible.builtin.get_url:
-        url: https://bootstrap.pypa.io/get-pip.py
-        dest: "./"
-
-    - name: Удаляем EXTERNALLY-MANAGED
-      ansible.builtin.file:
-        path: /usr/lib/python3.11/EXTERNALLY-MANAGED
-        state: absent
-
-    - name: Устанавливаем pip
-      ansible.builtin.shell: python3.11 get-pip.py
-
-
-
-- name: Установка зависимостей из ansible-playbook kubespray
-  hosts: master-1
-  become: true
-
-  tasks:
-
-    - name: Выполнение apt update и установка git
-      ansible.builtin.apt:
-        update_cache: true
-        pkg:
-        - git
-
-    - name: Клонируем kubespray из репозитория
-      ansible.builtin.git:
-        repo: https://github.com/kubernetes-sigs/kubespray.git
-        dest: ./kubespray
-
-    - name: Изменение прав на папку kubspray
-      ansible.builtin.file:
-        dest: ./kubespray
-        recurse: yes
-        owner: debian
-        group: debian
-
-    - name: Установка зависимостей из requirements.txt
-      ansible.builtin.pip:
-        requirements: /home/debian/kubespray/requirements.txt
-        extra_args: -r /home/debian/kubespray/requirements.txt
-
-    - name: Копирование содержимого папки inventory/sample в папку inventory/mycluster
-      ansible.builtin.copy:
-        src: /home/debian/kubespray/inventory/sample/
-        dest: /home/debian/kubespray/inventory/mycluster/
-        remote_src: true
-
-
-- name: Подготовка master-node к установке kubespray из ansible-playbook
-  hosts: master-1
-  become: true
-
-  tasks:
-
-    - name: Копирование на master-node файла hosts.yml
-      ansible.builtin.copy:
-        src: ./inventory/hosts.yml
-        dest: ./kubespray/inventory/mycluster/
-
-    - name: Копирование на мастер приватного ключа
-      ansible.builtin.copy:
-        src: /root/.ssh/id_rsa
-        dest: ./.ssh
-        owner: debian
-        mode: '0600'
-```
-
-Роль готова, теперь идем посыпать Ансиблом нашу будущую мастер-ноду
-
-
-Выполняем запуск роли
-
-```
-ansible-playbook -i inventory/hosts.yml site.yml
-```
-
-![Image alt](https://github.com/mezhibo/Diplom/blob/1e248f8ced6090ba91fd1e59c430e38e2ca06422/IMG/8.jpg)
-
-
-
-Видим что все таски по настройке нашей мастер-ноды прошли успешно, подключаемся к мастер-ноде и на ней запускаем ansible-role 
-для настройки k8s-кластера через kubespray
-
-
-Перестрахуемся и дадим права пользователю debian на репу kubespray, чтобы у нас не падали ансибл таски при настройке кластера (уже проверено))))
-
-
-```
-sudo chown -R debian:debian ~/kubespray
-```
-
-Переходим в репу и запускаем роль
-
-```
-cd kubespay
-```
-
-```
-ansible-playbook -i inventory/mycluster/hosts.yml cluster.yml -b -v
-```
-
-Видим что пошел процесс развертывания кластера k8s
-
-![Image alt](https://github.com/mezhibo/Diplom/blob/1bd936baa7f16c3831ff84117f167158d75130b7/IMG/17.jpg)
-
-Процесс достаточно долгий, минут 20 точно.
-
-В этот раз хватило и 12 минут)) 
-
-
-Видим что все завершилось у нас удачно
-
-
-![Image alt](https://github.com/mezhibo/Diplom/blob/dc524d33f6f7c3109adb35a02fd34c2d8bc3c3ed/IMG/10.jpg)
-
-
-А вот в другой раз вышло аж 45 минут(((((
-
-![Image alt](https://github.com/mezhibo/Diplom/blob/f82bafc55f1ba39283344915c252eff9d8c5186f/IMG/18.jpg)
-
-Для выполнения команд kubectl без sudo скопируем папку .kube в домашнюю дирректорию пользователя и сменим владельца, а также группу владельцев папки с файлами:
-
-```
-sudo cp -r /root/.kube ~/
-sudo chown -R debian:debian ~/.kube
-```
-
-
-И теперь командой
-
-```
-kubectl get pods --all-namespaces
-```
-
-Прверим как работает наш кластер
-
-
-![Image alt](https://github.com/mezhibo/Diplom/blob/dc524d33f6f7c3109adb35a02fd34c2d8bc3c3ed/IMG/11.jpg)
-
-
-На этом второй этап готов! Кластер под наше приложение создан!
+Теперь пойдем дальше, запилим наше приложение)))
 
 
 
@@ -760,7 +644,7 @@ git clone https://github.com/mezhibo/Test-application.git
 Создадим в этом репозитории файл содержащую HTML-код ниже:
 index.html
 
-[index.html](https://github.com/mezhibo/Diplom/blob/f1188c91b4ace7179e618ed83edfe2d478f79540/Chapter3/index%2Chtml)
+[index.html](https://github.com/mezhibo/DiplomV2/blob/75e4d4b1af491d3bed369fa4ba45191350dad199/Chapter3/index.html)
 
 
 ```
@@ -778,7 +662,7 @@ Hey, Netology
 Dockerfile
 
 
-[Dockerfile](https://github.com/mezhibo/Diplom/blob/f1188c91b4ace7179e618ed83edfe2d478f79540/Chapter3/Dockerfile)
+[Dockerfile](https://github.com/mezhibo/DiplomV2/blob/0c2a14b495d27372de178c6164a991cc786da2fc/Chapter3/Dockerfile)
 
 ```
 FROM nginx:1.27-alpine
@@ -787,7 +671,7 @@ COPY index.html /usr/share/nginx/html
 ```
 Теперь запушим эти изменения в наш гитхаб репозиторий
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/dc524d33f6f7c3109adb35a02fd34c2d8bc3c3ed/IMG/12.jpg)
+![Image alt](скрин8)
 
 
 Создадим папку для приложения mkdir mynginx и скопируем в нее ранее созданые файлы.
@@ -797,12 +681,12 @@ COPY index.html /usr/share/nginx/html
 sudo docker build -t mezhibo/nginx:v1 .
 ```
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/dc524d33f6f7c3109adb35a02fd34c2d8bc3c3ed/IMG/13.jpg)
+![Image alt](скрин9)
 
 
 Проверим что образ сбилдился
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/dc524d33f6f7c3109adb35a02fd34c2d8bc3c3ed/IMG/14.jpg)
+![Image alt](скрин10)
 
 
 
@@ -810,13 +694,13 @@ sudo docker build -t mezhibo/nginx:v1 .
 
 
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/dc524d33f6f7c3109adb35a02fd34c2d8bc3c3ed/IMG/15.jpg)
+![Image alt](скрин11)
 
 
 
 Зайдем в Docker Hub и проверим что наш контейнер доехал
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/dc524d33f6f7c3109adb35a02fd34c2d8bc3c3ed/IMG/16.jpg)
+![Image alt](скрин12)
 
 
 Так, приложение в контейнер сбилдили, в Доке хаб закинули, теперь его будем оттуда забирать и деплоить в наш кубер - кластер.
