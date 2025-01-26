@@ -809,86 +809,27 @@ kubectl apply -f .
 *Теперь прикрутим мониторинг кластера*
 
 
-Склонируем себе рпозиторий, который рекомендуют в выполнении дипломной работы
+Для удобства установки мониторинга воспользуемся Хельмом
 
 ```
-git clone https://github.com/prometheus-operator/kube-prometheus.git
-```
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm install monitoring prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace
 
-Теперь есть огромный нюанс с которым я бился очень долго и упорно, а именно нужно изменить тип сервиса 
-Grafana c ClusterIP на NodePort, для того чтобы веб-интерфейс графаны был проброшен на внешний айпи-адрес ноды, и можно было снаружи увидеть дашборды.
-
-Правим конфиг сервиса графаны
-
-```
-nano kube-prometheus/manifests/grafana-service.yaml
-```
-
-Удаляем все старое значение, и вписываем вот такое значение для сервиса
-
-[grafana-svc.yml](https://github.com/mezhibo/Diplom/blob/34384c711e6518f903256846af1c9128a28fcefa/Chapter4/grafana-svc.yml)
-
-```
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app.kubernetes.io/component: grafana
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: kube-prometheus
-    app.kubernetes.io/version: 11.4.0
-  name: grafana
-  namespace: monitoring
-spec:
-  type: NodePort
-  ports:
-  - name: http
-    port: 3000
-    targetPort: http
-    nodePort: 32000
-  selector:
-    app.kubernetes.io/component: grafana
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: kube-prometheus
-```
-
-Сохраняем конфиг с новым содержимым переходим в папку с файлами для деплоя, и запускаем наш стек мониторинга
-
-```
-cd kube-prometheus
 ```
 
 
-```
-kubectl apply --server-side -f manifests/setup
-kubectl wait \
- --for condition=Established \
- --all CustomResourceDefinition \
- --namespace=monitoring
-kubectl apply -f manifests/
-```
+Тут, есть один нюанс, по дефолту сервис Графаны у нас ClusterIp, нам его надо выпустить наружу, чтоб она была доступна по внешненму ip-адресу,
+изменим тип порта на NodePort
 
-И теперь командой проверим что все сущности нашего немйспейса monitoring работают
+Выполним команду
 
 ```
-kubectl get all -n monitoring
+kubectl edit svc -n monitoring monitoring-grafana
+
 ```
 
-Смотрим что все у нас поднялось и работает
-
-![Image alt](https://github.com/mezhibo/Diplom/blob/9b03a619c9bcfcd64ccc2374a28a94d7d42d5d8b/IMG/22.jpg)
-
-
-
-Теперь перейдем по внешнему ip-адресу однйо из нод, и убедимся что у нас работает мониторинг и графана получает данные о состоянии кластера
-
-![Image alt](https://github.com/mezhibo/Diplom/blob/19d9cf86806f5f407d270fb56c54a8f29fdcc9ca/IMG/25.jpg)
-
-
-Все супер, наше приложение задеплоино и мониторится.
-
-
-Теперь к следующему пунку а именно к автоматичсекой сборке приложения после коммита и автоматическому деплою
+Находим строку type и меняем ее занчение с ClusterIP на NodePort
 
 
 **Установка и настройка CI/CD**
