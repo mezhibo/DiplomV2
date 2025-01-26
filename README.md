@@ -792,7 +792,7 @@ kubectl apply -f .
 Теперь првоерим что все сущности созданы и работают
 
 
-![Image alt](https://github.com/mezhibo/DiplomV2/blob/d741ded5370ea411458996e97547393184213aed/IMG/13.jpg)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/b4a2c590f41981f6213be37c04cf36a55ffc68ad/IMG/15.jpg)
 
 
 Теперь перейдем на по внешнему ip-адресу на проброшенный порт 30000 
@@ -800,7 +800,7 @@ kubectl apply -f .
 
 И видим что наше собранное приложение с кастомной веб-страницей работает
 
-![Image alt](https://github.com/mezhibo/DiplomV2/blob/d741ded5370ea411458996e97547393184213aed/IMG/14.jpg)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/b4a2c590f41981f6213be37c04cf36a55ffc68ad/IMG/16.jpg)
 
 УРА!!! Наше приложение работает в кластере.
 
