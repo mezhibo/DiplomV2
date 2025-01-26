@@ -735,7 +735,7 @@ kubectl create namespace application
 Далее создадим файл демонсета для деплоя нашего приложения из докер хаба, где мы его ранее опубликовывали
 
 
-[Nginx-DaemonSet.yml](https://github.com/mezhibo/Diplom/blob/34384c711e6518f903256846af1c9128a28fcefa/Chapter4/Nginx-DaemonSet.yml)
+[Nginx-DaemonSet.yml](https://github.com/mezhibo/DiplomV2/blob/ecab765754b932a36c135c6409ab31f5ebad66fc/Chapter4/Nginx-DaemonSet.yml)
 
 ```
 apiVersion: apps/v1
@@ -762,7 +762,7 @@ spec:
 
 Для проброса порт анашего приложения наружу
 
-[Nginx-Service.yml](https://github.com/mezhibo/Diplom/blob/34384c711e6518f903256846af1c9128a28fcefa/Chapter4/Nginx-Service.yml)
+[Nginx-Service.yml](https://github.com/mezhibo/DiplomV2/blob/3a1bc957d70826bb361741b7d8f2c75f2f96d951/Chapter4/Nginx-Service.yml)
 
 ```
 apiVersion: v1
@@ -792,7 +792,7 @@ kubectl apply -f .
 Теперь првоерим что все сущности созданы и работают
 
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/bf32392c7fb09354251598881e9fb2eb07111246/IMG/19.jpg)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/d741ded5370ea411458996e97547393184213aed/IMG/13.jpg)
 
 
 Теперь перейдем на по внешнему ip-адресу на проброшенный порт 30000 
@@ -800,7 +800,7 @@ kubectl apply -f .
 
 И видим что наше собранное приложение с кастомной веб-страницей работает
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/bf32392c7fb09354251598881e9fb2eb07111246/IMG/20.jpg)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/d741ded5370ea411458996e97547393184213aed/IMG/14.jpg)
 
 УРА!!! Наше приложение работает в кластере.
 
