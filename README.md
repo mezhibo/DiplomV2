@@ -804,32 +804,93 @@ kubectl apply -f .
 
 УРА!!! Наше приложение работает в кластере.
 
-
-
 *Теперь прикрутим мониторинг кластера*
 
-
-Для удобства установки мониторинга воспользуемся Хельмом
-
-```
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-helm install monitoring prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace
+Склонируем себе репозиторий, который рекомендуют в выполнении дипломной работы
 
 ```
-
-
-Тут, есть один нюанс, по дефолту сервис Графаны у нас ClusterIp, нам его надо выпустить наружу, чтоб она была доступна по внешненму ip-адресу,
-изменим тип порта на NodePort
-
-Выполним команду
-
-```
-kubectl edit svc -n monitoring monitoring-grafana
-
+git clone https://github.com/prometheus-operator/kube-prometheus.git
 ```
 
-Находим строку type и меняем ее занчение с ClusterIP на NodePort
+Теперь есть огромный нюанс с которым я бился очень долго и упорно, а именно нужно изменить тип сервиса 
+Grafana c ClusterIP на NodePort, для того чтобы веб-интерфейс графаны был проброшен на внешний айпи-адрес ноды, и можно было снаружи увидеть дашборды.
+
+Правим конфиг сервиса графаны
+
+```
+nano kube-prometheus/manifests/grafana-service.yaml
+```
+
+Удаляем все старое значение, и вписываем вот такое значение для сервиса
+
+[grafana-svc.yml](https://github.com/mezhibo/DiplomV2/blob/e06aec93450f6b4c35d0bee1f92fc2b3b00bebaa/Chapter4/grafana-svc.yml)
+
+```
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus
+    app.kubernetes.io/version: 11.4.0
+  name: grafana
+  namespace: monitoring
+spec:
+  type: NodePort
+  ports:
+  - name: http
+    port: 3000
+    targetPort: http
+    nodePort: 32000
+  selector:
+    app.kubernetes.io/component: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus
+```
+
+Сохраняем конфиг с новым содержимым переходим в папку с файлами для деплоя, и запускаем наш стек мониторинга
+
+```
+cd kube-prometheus
+```
+
+
+```
+kubectl apply --server-side -f manifests/setup
+kubectl wait \
+ --for condition=Established \
+ --all CustomResourceDefinition \
+ --namespace=monitoring
+kubectl apply -f manifests/
+```
+
+И теперь командой проверим что все сущности нашего немйспейса monitoring работают
+
+```
+kubectl get all -n monitoring
+```
+
+Смотрим что все у нас поднялось и работает
+
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/9435dd1e75887f3005041e919b045248ba3b98a8/IMG/17.jpg)
+
+
+Теперь глянем в Линзе
+
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/9435dd1e75887f3005041e919b045248ba3b98a8/IMG/18.jpg)
+
+
+
+Теперь перейдем по внешнему ip-адресу однйо из нод, и убедимся что у нас работает мониторинг и графана получает данные о состоянии кластера
+
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/9435dd1e75887f3005041e919b045248ba3b98a8/IMG/19.jpg)
+
+
+Все супер, наше приложение задеплоино и мониторится.
+
+
+Теперь к следующему пунку а именно к автоматичсекой сборке приложения после коммита и автоматическому деплою
 
 
 **Установка и настройка CI/CD**
@@ -843,7 +904,7 @@ kubectl edit svc -n monitoring monitoring-grafana
 Запишем эти 2 значения юзера и токена себе в блокнот
 
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/3923ca578c63cba70f495f0b1142de101dc25de1/IMG/26.jpg)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/412b38046dbf4047dc81fd07ad3b4ed69d7b7eec/IMG/20.jpg)
 
 
 
@@ -852,12 +913,12 @@ kubectl edit svc -n monitoring monitoring-grafana
 Для этого создадим 2 секрета в Github для репозитория где хранится наше тестовое приложение в которых будут хранится наши логин и токен для доступа в докер-хаб
 
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/3923ca578c63cba70f495f0b1142de101dc25de1/IMG/27.jpg)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/412b38046dbf4047dc81fd07ad3b4ed69d7b7eec/IMG/21.jpg)
 
 
 Далее, создадим workflow файл для автоматической сборки приложения nginx: 
 
-[build.yml](https://github.com/mezhibo/Diplom/blob/d2f0b2f2e3735e8838899711a8872f6883e8e522/Chapter5/build.yml)
+[build.yml](https://github.com/mezhibo/DiplomV2/blob/412b38046dbf4047dc81fd07ad3b4ed69d7b7eec/Chapter5/build.yml)
 
 
 ```
@@ -894,14 +955,14 @@ jobs:
 Проверим что workflow успешно выполнился
 
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/3923ca578c63cba70f495f0b1142de101dc25de1/IMG/28.jpg)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/412b38046dbf4047dc81fd07ad3b4ed69d7b7eec/IMG/22.jpg)
 
 
 
 Перейдем в докерхаб и увидим что появился загруженный образ
 
 
-![Image alt](https://github.com/mezhibo/Diplom/blob/3923ca578c63cba70f495f0b1142de101dc25de1/IMG/29.jpg)
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/412b38046dbf4047dc81fd07ad3b4ed69d7b7eec/IMG/23.jpg)
 
 
 [ССЫЛКА_НА_ДОКЕРХАБ](https://hub.docker.com/repository/docker/mezhibo/nginx/general)
