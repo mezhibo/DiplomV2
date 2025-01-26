@@ -1,0 +1,28 @@
+name: Сборка Docker-образа
+
+on:
+  push:
+    branches:
+      - '*'
+jobs:
+  my_build_job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Проверка кода
+        uses: actions/checkout@v4
+
+      - name: Вход на Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.USER_DOCKER_HUB }}
+          password: ${{ secrets.MY_TOKEN_DOCKER_HUB }}
+
+      - name: Сборка Docker-образа
+        run: |
+          docker build . --file Dockerfile --tag nginx:latest
+          docker tag nginx:latest ${{ secrets.USER_DOCKER_HUB }}/nginx:latest
+
+      - name: Push Docker-образа в Docker Hub
+        run: |
+          docker push ${{ secrets.USER_DOCKER_HUB }}/nginx:latest
