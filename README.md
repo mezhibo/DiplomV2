@@ -918,7 +918,7 @@ kubectl get all -n monitoring
 
 Далее, создадим workflow файл для автоматической сборки приложения nginx: 
 
-[build.yml](https://github.com/mezhibo/DiplomV2/blob/412b38046dbf4047dc81fd07ad3b4ed69d7b7eec/Chapter5/build.yml)
+[build.yml](https://github.com/mezhibo/Test-application/blob/5ca7dd1c25347c2bda35935d8bf5d33d2c5b36d3/.github/workflows/blank.yml)
 
 
 ```
@@ -966,3 +966,101 @@ jobs:
 
 
 [ССЫЛКА_НА_ДОКЕРХАБ](https://hub.docker.com/repository/docker/mezhibo/nginx/general)
+
+
+
+И последним шагом настроим автоматичесикй деплой нового докер образа
+
+Создам переменную, в которой будет лежать файл конфигурации для подключения к кубер кластеру, в простонаролье содержимое /.kube/config
+
+![Image alt](скрин24)
+
+
+
+И теперь создаим воркфлоу для автоматической сборки nginx при создании тэга и автоматичсекого развертывания его в кластер
+
+
+[build-deployment.yml](https://github.com/mezhibo/Test-application/blob/5ca7dd1c25347c2bda35935d8bf5d33d2c5b36d3/.github/workflows/build-deployment.yml)
+
+
+```
+name: Сборка и Развертывание
+on:
+  push:
+    branches:
+      - '*'
+  create:
+    tags:
+      - '*'
+      - name: Create tag v1.0.0
+        run: |
+          git tag v1.0.0
+env:
+  IMAGE_TAG: mezhibo/nginx
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Проверка кода
+        uses: actions/checkout@v4
+
+      - name: Установка Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Вход на Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.USER_DOCKER_HUB }}
+          password: ${{ secrets.MY_TOKEN_DOCKER_HUB }}
+
+      - name: Определяем версию
+        run: |
+          echo "GITHUB_REF: ${GITHUB_REF}"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION=$(git log -1 --pretty=format:%B | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+          fi
+          if [[ -z "$VERSION" ]]; then
+            echo "No version found in the commit message or tag"
+            exit 1
+          fi
+          VERSION=${VERSION//[[:space:]]/}  # Remove any spaces
+          echo "Using version: $VERSION"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Сборка и push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_TAG }}:${{ env.VERSION }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Проверка кода
+        uses: actions/checkout@v4
+
+      - name: Установка kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/v1.30.3/bin/linux/amd64/kubectl"
+          chmod +x ./kubectl
+          sudo mv ./kubectl /usr/local/bin/kubectl
+          kubectl version --client
+
+      - name: Конфигурирование kubectl, развертыввание и деплой
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" > config.yml
+          export KUBECONFIG=config.yml
+          kubectl config view
+          kubectl get nodes
+          kubectl get pods --all-namespaces
+          kubectl create deployment nginx --image=mezhibo/nginx:1.0.0
+          kubectl rollout status deployment.v1.apps/nginx
+    env:
+      KUBECONFIG: ${{ secrets.KUBECONFIG }}
+```
