@@ -1091,7 +1091,90 @@ jobs:
 
 [ПРИЛОЖЕНИЕ](http://130.193.34.164:30000/)
 
+
+
 [GRAFANA](http://130.193.34.164:32000/)   (Admin  Admin)
 
 [ПАЙПЛАЙН](https://github.com/mezhibo/Test-application/actions)
 
+
+
+
+**Доработка по диплому**
+
+
+Для хранилища манефестов terraform будет использовать github-репозиторий
+
+[ССЫЛКА](https://github.com/mezhibo/Infrastructure.git)
+
+
+Теперь создадим переменные в github для хранения секретных данных
+
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/4b77878a337977c2b4fc8006faf23ca64757e223/IMG/31.jpg)
+
+
+Создадим наш воркфлоу который при изменении файлов нашей инфраструктуры будем автомаьтически пересобирать всю инфру
+
+[tf.yml](https://github.com/mezhibo/Infrastructure/blob/0a6e0d9a0769ac9150ce23e20363f33caab55576/.github/workflows/tf.yml)
+```
+name: Terraform CI/CD for Yandex Cloud
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  terraform:
+    name: Terraform Workflow
+    runs-on: ubuntu-latest
+
+    steps:
+      # Шаг 1: Клонирование репозитория
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Шаг 2: Установка Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.6 # Укажите вашу версию Terraform
+
+      # Шаг 3: Настройка переменных окружения для Yandex Cloud
+      - name: Set up environment variables
+        env:
+          YC_TOKEN: ${{ secrets.YC_TOKEN }}
+          YC_CLOUD_ID: ${{ secrets.YC_CLOUD_ID }}
+          YC_FOLDER_ID: ${{ secrets.YC_FOLDER_ID }}
+        run: |
+          echo "export YC_TOKEN=${{ secrets.YC_TOKEN }}" >> $GITHUB_ENV
+          echo "export YC_CLOUD_ID=${{ secrets.YC_CLOUD_ID }}" >> $GITHUB_ENV
+          echo "export YC_FOLDER_ID=${{ secrets.YC_FOLDER_ID }}" >> $GITHUB_ENV
+
+      # Шаг 4: Инициализация Terraform
+      - name: Terraform Init
+        run: terraform init
+
+      # Шаг 5: Планирование изменений (terraform plan)
+      - name: Terraform Plan
+        run: terraform plan -var="yc_token=${{ secrets.YC_TOKEN }}"
+
+      # Шаг 6 (опционально): Применение изменений (terraform apply)
+      # Этот шаг можно включить только для ветки main.
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve -var="yc_token=${{ secrets.YC_TOKEN }}"
+
+```
+
+Теперь внесем изменения, делаем коммит, делаем пуш, и видим как происходит авторазвертывание нашей инфры
+
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/4b77878a337977c2b4fc8006faf23ca64757e223/IMG/32.jpg)
+
+
+[TF_APPLY](https://github.com/mezhibo/Infrastructure/actions/runs/13078259966/job/36495653539)
+
+Тем самым мы настроили github для отслеживания изменений инфраструктуры
+
+ГОТОВО!
