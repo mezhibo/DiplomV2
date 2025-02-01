@@ -1103,78 +1103,46 @@ jobs:
 **Доработка по диплому**
 
 
-Для хранилища манефестов terraform будет использовать github-репозиторий
+В доработке по диплому попросили сделать отслеживание инфраструктуры
 
-[ССЫЛКА](https://github.com/mezhibo/Infrastructure.git)
-
-
-Теперь создадим переменные в github для хранения секретных данных
-
-![Image alt](https://github.com/mezhibo/DiplomV2/blob/4b77878a337977c2b4fc8006faf23ca64757e223/IMG/31.jpg)
+Не буду изобретать велосипед, и сделаю все по классике, а имеено старый добрый Gitlab-и раннер с установленной Terraform
 
 
-Создадим наш воркфлоу который при изменении файлов нашей инфраструктуры будем автомаьтически пересобирать всю инфру
-
-[tf.yml](https://github.com/mezhibo/Infrastructure/blob/0a6e0d9a0769ac9150ce23e20363f33caab55576/.github/workflows/tf.yml)
-```
-name: Terraform CI/CD for Yandex Cloud
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-
-jobs:
-  terraform:
-    name: Terraform Workflow
-    runs-on: ubuntu-latest
-
-    steps:
-      # Шаг 1: Клонирование репозитория
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      # Шаг 2: Установка Terraform
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.6 # Укажите вашу версию Terraform
-
-      # Шаг 3: Настройка переменных окружения для Yandex Cloud
-      - name: Set up environment variables
-        env:
-          YC_TOKEN: ${{ secrets.YC_TOKEN }}
-          YC_CLOUD_ID: ${{ secrets.YC_CLOUD_ID }}
-          YC_FOLDER_ID: ${{ secrets.YC_FOLDER_ID }}
-        run: |
-          echo "export YC_TOKEN=${{ secrets.YC_TOKEN }}" >> $GITHUB_ENV
-          echo "export YC_CLOUD_ID=${{ secrets.YC_CLOUD_ID }}" >> $GITHUB_ENV
-          echo "export YC_FOLDER_ID=${{ secrets.YC_FOLDER_ID }}" >> $GITHUB_ENV
-
-      # Шаг 4: Инициализация Terraform
-      - name: Terraform Init
-        run: terraform init
-
-      # Шаг 5: Планирование изменений (terraform plan)
-      - name: Terraform Plan
-        run: terraform plan -var="yc_token=${{ secrets.YC_TOKEN }}"
-
-      # Шаг 6 (опционально): Применение изменений (terraform apply)
-      # Этот шаг можно включить только для ветки main.
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main'
-        run: terraform apply -auto-approve -var="yc_token=${{ secrets.YC_TOKEN }}"
-
-```
-
-Теперь внесем изменения, делаем коммит, делаем пуш, и видим как происходит авторазвертывание нашей инфры
-
-![Image alt](https://github.com/mezhibo/DiplomV2/blob/4b77878a337977c2b4fc8006faf23ca64757e223/IMG/32.jpg)
+Для хранения манифестов и лок-файлов буду использовать Gitlab
 
 
-[TF_APPLY](https://github.com/mezhibo/Infrastructure/actions/runs/13078259966/job/36495653539)
+[РЕПА_С_МАНФЕСТАМИ](https://gitlab.com/iac5661205/terraform_ya.git)
 
-Тем самым мы настроили github для отслеживания изменений инфраструктуры
 
-ГОТОВО!
+Перед этим зарегистрировал раннер, и настроил на нем Terraform
+
+Напишем простую CI в гитлабе для самых простых операций Terraform (Init, Plan, Apply, Destroy)
+
+Теперь делаю комммит, автоматичсески запускается init и plan, проверяем что все у нас верно, и запускаем создание инфры
+
+
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/1c1663bac75474133e2abd64e95c271200353a74/IMG/33.jpg)
+
+
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/1c1663bac75474133e2abd64e95c271200353a74/IMG/34.jpg)
+
+
+Создадим нашу инфру
+
+И уничтожим чтобы не тратило деньги.
+
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/1c1663bac75474133e2abd64e95c271200353a74/IMG/35.jpg)
+
+Видим что все шаги отрабатывают красиво
+
+
+![Image alt](https://github.com/mezhibo/DiplomV2/blob/1c1663bac75474133e2abd64e95c271200353a74/IMG/36.jpg)
+
+Ну вот и все, состояние инфраструктуры у нас фиксируется коммитами, при каждом коммите идет автоматический план инфры,и при необходимости мы его применяем либо нет.
+
+
+
+[CСЫЛОЧКА_НА_ПАЙПЛАЙН](https://gitlab.com/iac5661205/terraform_ya/-/pipelines/1651533510)
+
+Теперь все готово!
+
